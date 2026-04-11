@@ -1,8 +1,10 @@
 #include <stdio.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "tga.h"
 #include <assert.h>
+#include "logging.h"
 
 #define WIDTH 64
 #define HEIGHT 64
@@ -43,14 +45,16 @@ static inline void colour_pixel(unsigned char *framebuffer, int pixel, Colour co
   assert(pixel >= 0 && pixel < WIDTH * HEIGHT * 3);
 
   framebuffer[pixel + 0] = colour.r;
-  framebuffer[pixel + sizeof(char)] = colour.g;
-  framebuffer[pixel + 2*sizeof(char)] = colour.b; 
+  framebuffer[pixel + 1] = colour.g;
+  framebuffer[pixel + 2] = colour.b; 
 }
 
 //In this co-ordinate system - the top left is 0 and the bottom right is the height
 //and we draw lines from the top on down
 void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Point2D ending_point, Colour colour) {
-  //If steep then transpose the image to make it shallow to avoid floating point issue issues
+  //Bresnham works by having the movement in x always be +1 and in y be +1 or 0
+  //This is true only when x increases faster than y
+  //So in the event y increases faster then x - we must swap
   bool steep = abs(starting_point.x - ending_point.x) < abs(starting_point.y - ending_point.y);
   if (steep) {
     int temp = starting_point.x;
@@ -74,8 +78,7 @@ void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Poi
   //Main Bresenham algorithm
   for (float x = starting_point.x; x < ending_point.x; x++) {
     float t = (float) ((x-starting_point.x)/(ending_point.x - starting_point.x));
-    int x = (int) (starting_point.x + (dx) * t);
-    int y = (int) (starting_point.y + (dy) * t);
+    int y = round(starting_point.y + (dy) * t);
     Point2D pixel_to_colour = (Point2D) {x, y};
 
     if (steep) {
@@ -83,7 +86,7 @@ void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Poi
     }
 
     colour_pixel(framebuffer, pixel_index(pixel_to_colour), colour);
-    printf("Draw Pixel at: (%d, %d)\n", x, y); 
+    LOG("Draw Pixel at: (%d, %d) with sample %f", pixel_to_colour.x, pixel_to_colour.y, t); 
   }
 }
 

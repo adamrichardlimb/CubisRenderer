@@ -4,7 +4,6 @@ project(CubisRenderer C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# --- TGA library ---
 add_library(tga
     external/tga/tga.c
 )
@@ -13,9 +12,21 @@ target_include_directories(tga PUBLIC
     external/tga
 )
 
-# --- Your executable ---
 add_executable(CubisRenderer
     src/main.c
 )
 
-target_link_libraries(CubisRenderer PRIVATE tga)
+target_link_libraries(CubisRenderer PRIVATE tga m)
+
+target_compile_options(CubisRenderer PRIVATE
+    $<$<CONFIG:Debug>:-O0 -g3>
+    $<$<CONFIG:Release>:-Ofast -march=native -flto -DNDEBUG>
+)
+
+target_compile_definitions(CubisRenderer PRIVATE
+    $<$<CONFIG:Debug>:DEBUG>
+)
+
+target_link_options(CubisRenderer PRIVATE
+    $<$<CONFIG:Release>:-flto>
+)
