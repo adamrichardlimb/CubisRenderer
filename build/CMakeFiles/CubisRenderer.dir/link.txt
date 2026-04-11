@@ -1,0 +1,1 @@
+/usr/bin/cc -Wl,--dependency-file=CMakeFiles/CubisRenderer.dir/link.d CMakeFiles/CubisRenderer.dir/src/main.c.o -o CubisRenderer  libtga.a

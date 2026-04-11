@@ -1,0 +1,4 @@
+/home/adzy/Projects/CubisRenderer/build/CMakeFiles/tga.dir
+/home/adzy/Projects/CubisRenderer/build/CMakeFiles/CubisRenderer.dir
+/home/adzy/Projects/CubisRenderer/build/CMakeFiles/edit_cache.dir
+/home/adzy/Projects/CubisRenderer/build/CMakeFiles/rebuild_cache.dir
