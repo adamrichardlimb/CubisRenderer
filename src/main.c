@@ -47,10 +47,12 @@ typedef struct {
 
 typedef struct {
   Vertex *vertices;
-  int *faces;
+  int vertex_count;
+  ObjFace *faces;
+  int face_count;
 } wireframe_obj;
 
-static void parse_obj_file() {
+static wireframe_obj parse_obj_file() {
   //Read in file
   FILE *fptr;
   char * line = NULL;
@@ -110,17 +112,20 @@ static void parse_obj_file() {
   if (line) {
     free(line);
   }
-}
 
+  return (wireframe_obj) {vertices, vertex_count, faces, face_count};
+}
 static inline bool two_points_equal(Point2D a, Point2D b) {
   return a.x == b.x && a.y == b.y;
 }
 
-static inline int pixel_index(Point2D point) {
+static inline unsigned int pixel_index(Point2D point) {
+  LOG("Generating pixel index for: %d, %d", point.x, point.y);
   return ((point.y * WIDTH) + point.x)*3;
 }
 
-static inline void colour_pixel(unsigned char *framebuffer, int pixel, Colour colour) {
+static inline void colour_pixel(unsigned char *framebuffer, unsigned int pixel, Colour colour) {
+  LOG("Colouring pixel at index %d", pixel);
   assert(pixel >= 0 && pixel < WIDTH * HEIGHT * 3);
 
   framebuffer[pixel + 0] = colour.r;
@@ -169,6 +174,33 @@ void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Poi
   }
 }
 
+void scale_vertex(Vertex *vertex) {
+  vertex->x = (vertex->x+1.0f) * (WIDTH - 1)/2.0f;
+  vertex->y = (vertex->y+1.0f) * (HEIGHT - 1)/2.0f;
+}
+
+void draw_obj(unsigned char *framebuffer, wireframe_obj *obj) {
+  //Iterate over the faces and access the members of the vertices array by their index
+  for (int faceIdx = 0; faceIdx < obj->face_count; faceIdx++) {
+    ObjFace face = obj->faces[faceIdx];
+
+    Vertex vertex1 = obj->vertices[face.vIndex1 - 1];
+    Vertex vertex2 = obj->vertices[face.vIndex2 - 1];
+    Vertex vertex3 = obj->vertices[face.vIndex3 - 1];
+
+    //Scale to our image
+    scale_vertex(&vertex1);
+    scale_vertex(&vertex2);
+    scale_vertex(&vertex3);
+
+    draw_bresenham_line(framebuffer, (Point2D) {vertex1.x, vertex1.y}, (Point2D) {vertex2.x, vertex2.y}, RED);
+    draw_bresenham_line(framebuffer, (Point2D) {vertex2.x, vertex2.y}, (Point2D) {vertex3.x, vertex3.y}, RED);
+    draw_bresenham_line(framebuffer, (Point2D) {vertex3.x, vertex3.y}, (Point2D) {vertex1.x, vertex1.y}, RED);
+  }
+}
+
+
+
 int main(void) {
   //One byte for rgb
   unsigned char framebuffer[WIDTH*HEIGHT*3];
@@ -177,18 +209,18 @@ int main(void) {
     framebuffer[idx] = 0;
   }
 
-  draw_bresenham_line(framebuffer, a1, a2, RED);
-  draw_bresenham_line(framebuffer, a2, a1, YELLOW);
+  //draw_bresenham_line(framebuffer, a1, a2, RED);
+  //draw_bresenham_line(framebuffer, a2, a1, YELLOW);
 
-  draw_bresenham_line(framebuffer, a3, a2, BLUE);
-  draw_bresenham_line(framebuffer, a2, a3, PURPLE);
+  //draw_bresenham_line(framebuffer, a3, a2, BLUE);
+  //draw_bresenham_line(framebuffer, a2, a3, PURPLE);
 
-  draw_bresenham_line(framebuffer, a1, a3, GREEN);
-  draw_bresenham_line(framebuffer, a3, a1, CYAN);
+  //draw_bresenham_line(framebuffer, a1, a3, GREEN);
+  //draw_bresenham_line(framebuffer, a3, a1, CYAN);
 
-  colour_pixel(framebuffer, pixel_index(a1), WHITE);
-  colour_pixel(framebuffer, pixel_index(a2), WHITE);
-  colour_pixel(framebuffer, pixel_index(a3), WHITE);
+  //colour_pixel(framebuffer, pixel_index(a1), WHITE);
+  //colour_pixel(framebuffer, pixel_index(a2), WHITE);
+  //colour_pixel(framebuffer, pixel_index(a3), WHITE);
 
   tga_image image = (tga_image) {
     WIDTH,
@@ -199,7 +231,9 @@ int main(void) {
     false
   };
 
-  parse_obj_file();
+  wireframe_obj obj = parse_obj_file();
+  draw_obj(framebuffer, &obj);
+
   save_tga("output.tga", &image, TGA_RGB);
   return 0;
 }
