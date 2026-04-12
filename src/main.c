@@ -6,8 +6,8 @@
 #include <assert.h>
 #include "logging.h"
 
-#define WIDTH 64
-#define HEIGHT 64
+#define WIDTH 1024
+#define HEIGHT 1024
 
 typedef struct {
   uint8_t r;
@@ -32,6 +32,85 @@ typedef struct {
 Point2D a1 = (Point2D) {7, 3};
 Point2D a2 = (Point2D) {12, 37};
 Point2D a3 = (Point2D) {62, 53};
+
+typedef struct {
+  float x;
+  float y;
+  float z;
+} Vertex;
+
+typedef struct {
+  int vIndex1;
+  int vIndex2;
+  int vIndex3;
+} ObjFace;
+
+typedef struct {
+  Vertex *vertices;
+  int *faces;
+} wireframe_obj;
+
+static void parse_obj_file() {
+  //Read in file
+  FILE *fptr;
+  char * line = NULL;
+  size_t len = 0;
+  ssize_t read;
+
+  //Read in file line-by-line
+  fptr = fopen("diablo3_post.obj", "r");
+
+  if (fptr == NULL) {
+    printf("Unable to open diablo3_post.obj, closing file!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  int line_count = 0;
+
+  Vertex *vertices = NULL;
+  ObjFace *faces = NULL;
+
+  int vertex_count = 0;
+  int vertex_capacity = 0;
+
+  int face_count = 0;
+  int face_capacity = 0;
+
+  while ((read = getline(&line, &len, fptr)) != -1) {
+    line_count += 1;
+    float x, y, z;
+
+    //Read in each vertex and stick into the array increasing in size if we exceed our limit
+    if (sscanf(line, "v %f %f %f", &x, &y, &z) == 3) {
+      //It too large - reallocate
+      if (vertex_count >= vertex_capacity) {
+        vertex_capacity = vertex_capacity ? vertex_capacity * 2 : 128;
+        vertices = realloc(vertices, vertex_capacity * sizeof(Vertex));
+      }
+      vertices[vertex_count++] = (Vertex){x, y, z};
+
+      LOG("Vertex: %f %f %f", x, y, z);
+    }
+
+    int v1, vt1, vn1, v2, vt2, vn2, v3, vt3, vn3;
+    //For faces read in the line and extract only the first number in each vertex definition
+    if (sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &v1, &vt1, &vn1, &v2, &vt2, &vn2, &v3, &vt3, &vn3) == 9) {
+      //It too large - reallocate
+      if (face_count >= face_capacity) {
+        face_capacity = face_capacity ? face_capacity * 2 : 128;
+        faces = realloc(faces, face_capacity * sizeof(ObjFace));
+      }
+      faces[face_count++] = (ObjFace){v1, v2, v3};
+
+      LOG("Face: %d %d %d", v1, v2, v3);
+    }
+  }
+
+  fclose(fptr);
+  if (line) {
+    free(line);
+  }
+}
 
 static inline bool two_points_equal(Point2D a, Point2D b) {
   return a.x == b.x && a.y == b.y;
@@ -120,6 +199,7 @@ int main(void) {
     false
   };
 
+  parse_obj_file();
   save_tga("output.tga", &image, TGA_RGB);
   return 0;
 }
