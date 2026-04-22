@@ -5,50 +5,17 @@
 #include "tga.h"
 #include <assert.h>
 #include "logging.h"
+#include "colour.h"
+#include "framebuffer.h"
+#include "modelspace.h"
 
 #define WIDTH 1024
 #define HEIGHT 1024
 
 typedef struct {
-  uint8_t r;
-  uint8_t g;
-  uint8_t b;
-} Colour;
-
-#define WHITE ((Colour){255, 255, 255})
-#define RED ((Colour){255, 0, 0})
-#define GREEN ((Colour){0, 255, 0})
-#define BLUE ((Colour){0, 0, 255})
-#define YELLOW ((Colour){250, 210, 10})
-#define PURPLE ((Colour){250, 10, 250})
-#define CYAN ((Colour){10, 250, 250})
-#define BLACK ((Colour){0, 0, 0})
-
-typedef struct {
-  int x;
-  int y;
-} Point2D;
-
-Point2D a1 = (Point2D) {7, 3};
-Point2D a2 = (Point2D) {12, 37};
-Point2D a3 = (Point2D) {62, 53};
-
-typedef struct {
-  float x;
-  float y;
-  float z;
-} Vertex;
-
-typedef struct {
-  int vIndex1;
-  int vIndex2;
-  int vIndex3;
-} ObjFace;
-
-typedef struct {
   Vertex *vertices;
   int vertex_count;
-  ObjFace *faces;
+  Face *faces;
   int face_count;
 } wireframe_obj;
 
@@ -70,7 +37,7 @@ static wireframe_obj parse_obj_file() {
   int line_count = 0;
 
   Vertex *vertices = NULL;
-  ObjFace *faces = NULL;
+  Face *faces = NULL;
 
   int vertex_count = 0;
   int vertex_capacity = 0;
@@ -100,9 +67,9 @@ static wireframe_obj parse_obj_file() {
       //It too large - reallocate
       if (face_count >= face_capacity) {
         face_capacity = face_capacity ? face_capacity * 2 : 128;
-        faces = realloc(faces, face_capacity * sizeof(ObjFace));
+        faces = realloc(faces, face_capacity * sizeof(Face));
       }
-      faces[face_count++] = (ObjFace){v1, v2, v3};
+      faces[face_count++] = (Face){v1, v2, v3};
 
       LOG("Face: %d %d %d", v1, v2, v3);
     }
@@ -115,27 +82,10 @@ static wireframe_obj parse_obj_file() {
 
   return (wireframe_obj) {vertices, vertex_count, faces, face_count};
 }
-static inline bool two_points_equal(Point2D a, Point2D b) {
-  return a.x == b.x && a.y == b.y;
-}
-
-static inline unsigned int pixel_index(Point2D point) {
-  LOG("Generating pixel index for: %d, %d", point.x, point.y);
-  return ((point.y * WIDTH) + point.x)*3;
-}
-
-static inline void colour_pixel(unsigned char *framebuffer, unsigned int pixel, Colour colour) {
-  LOG("Colouring pixel at index %d", pixel);
-  assert(pixel >= 0 && pixel < WIDTH * HEIGHT * 3);
-
-  framebuffer[pixel + 0] = colour.r;
-  framebuffer[pixel + 1] = colour.g;
-  framebuffer[pixel + 2] = colour.b; 
-}
 
 //In this co-ordinate system - the top left is 0 and the bottom right is the height
 //and we draw lines from the top on down
-void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Point2D ending_point, Colour colour) {
+void draw_bresenham_line(Framebuffer *framebuffer, ScreenPos starting_point, ScreenPos ending_point, Colour colour) {
   //Bresnham works by having the movement in x always be +1 and in y be +1 or 0
   //This is true only when x increases faster than y
   //So in the event y increases faster then x - we must swap
@@ -151,7 +101,7 @@ void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Poi
   }
 
   if (starting_point.x > ending_point.x) {
-    Point2D temp = starting_point;
+    ScreenPos temp = starting_point;
     starting_point = ending_point;
     ending_point = temp;
   }
@@ -163,76 +113,53 @@ void draw_bresenham_line(unsigned char *framebuffer, Point2D starting_point, Poi
   for (float x = starting_point.x; x < ending_point.x; x++) {
     float t = (float) ((x-starting_point.x)/(ending_point.x - starting_point.x));
     int y = round(starting_point.y + (dy) * t);
-    Point2D pixel_to_colour = (Point2D) {x, y};
+    ScreenPos pixel_to_colour = (ScreenPos) {x, y};
 
     if (steep) {
-      pixel_to_colour = (Point2D) {y, x};
+      pixel_to_colour = (ScreenPos) {y, x};
     }
 
-    colour_pixel(framebuffer, pixel_index(pixel_to_colour), colour);
+    framebuffer_set_pixel(framebuffer, pixel_to_colour.x, pixel_to_colour.y, colour);
     LOG("Draw Pixel at: (%d, %d) with sample %f", pixel_to_colour.x, pixel_to_colour.y, t); 
   }
 }
 
-void scale_vertex(Vertex *vertex) {
-  vertex->x = (vertex->x+1.0f) * (WIDTH - 1)/2.0f;
-  vertex->y = (vertex->y+1.0f) * (HEIGHT - 1)/2.0f;
-}
-
-void draw_obj(unsigned char *framebuffer, wireframe_obj *obj) {
+void draw_obj(Framebuffer *framebuffer, wireframe_obj *obj) {
   //Iterate over the faces and access the members of the vertices array by their index
   for (int faceIdx = 0; faceIdx < obj->face_count; faceIdx++) {
-    ObjFace face = obj->faces[faceIdx];
+    Face face = obj->faces[faceIdx];
 
     Vertex vertex1 = obj->vertices[face.vIndex1 - 1];
     Vertex vertex2 = obj->vertices[face.vIndex2 - 1];
     Vertex vertex3 = obj->vertices[face.vIndex3 - 1];
 
     //Scale to our image
-    scale_vertex(&vertex1);
-    scale_vertex(&vertex2);
-    scale_vertex(&vertex3);
+    ScreenPos point1 = project_to_framebuffer(framebuffer, &vertex1);
+    ScreenPos point2 = project_to_framebuffer(framebuffer, &vertex2);
+    ScreenPos point3 = project_to_framebuffer(framebuffer, &vertex3);
 
-    draw_bresenham_line(framebuffer, (Point2D) {vertex1.x, vertex1.y}, (Point2D) {vertex2.x, vertex2.y}, RED);
-    draw_bresenham_line(framebuffer, (Point2D) {vertex2.x, vertex2.y}, (Point2D) {vertex3.x, vertex3.y}, RED);
-    draw_bresenham_line(framebuffer, (Point2D) {vertex3.x, vertex3.y}, (Point2D) {vertex1.x, vertex1.y}, RED);
+    draw_bresenham_line(framebuffer, point1, point2, COLOUR_RED);
+    draw_bresenham_line(framebuffer, point2, point3, COLOUR_RED);
+    draw_bresenham_line(framebuffer, point3, point1, COLOUR_RED);
   }
 }
 
 
-
 int main(void) {
   //One byte for rgb
-  unsigned char framebuffer[WIDTH*HEIGHT*3];
-
-  for (int idx = 0; idx < WIDTH*HEIGHT*3; idx++) {
-    framebuffer[idx] = 0;
-  }
-
-  //draw_bresenham_line(framebuffer, a1, a2, RED);
-  //draw_bresenham_line(framebuffer, a2, a1, YELLOW);
-
-  //draw_bresenham_line(framebuffer, a3, a2, BLUE);
-  //draw_bresenham_line(framebuffer, a2, a3, PURPLE);
-
-  //draw_bresenham_line(framebuffer, a1, a3, GREEN);
-  //draw_bresenham_line(framebuffer, a3, a1, CYAN);
-
-  //colour_pixel(framebuffer, pixel_index(a1), WHITE);
-  //colour_pixel(framebuffer, pixel_index(a2), WHITE);
-  //colour_pixel(framebuffer, pixel_index(a3), WHITE);
+  Framebuffer framebuffer = framebuffer_create(WIDTH, HEIGHT, 3);
 
   tga_image image = (tga_image) {
     WIDTH,
     HEIGHT,
     3,
-    framebuffer,
+    framebuffer.data,
     false,
     false
   };
 
   wireframe_obj obj = parse_obj_file();
-  draw_obj(framebuffer, &obj);
+  draw_obj(&framebuffer, &obj);
 
   save_tga("output.tga", &image, TGA_RGB);
   return 0;

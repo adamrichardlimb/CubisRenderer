@@ -14,6 +14,8 @@ target_include_directories(tga PUBLIC
 
 add_executable(CubisRenderer
     src/main.c
+    src/framebuffer.c
+    src/colour.c
 )
 
 target_link_libraries(CubisRenderer PRIVATE tga m)
