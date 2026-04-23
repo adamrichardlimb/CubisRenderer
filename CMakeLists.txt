@@ -14,8 +14,14 @@ target_include_directories(tga PUBLIC
 
 add_executable(CubisRenderer
     src/main.c
-    src/framebuffer.c
-    src/colour.c
+    src/framebuffer/framebuffer.c
+    src/render/raster.c
+    src/core/colour.c
+    src/io/io.c
+)
+
+target_include_directories(CubisRenderer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 target_link_libraries(CubisRenderer PRIVATE tga m)

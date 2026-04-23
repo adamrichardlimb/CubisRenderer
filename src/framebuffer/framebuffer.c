@@ -1,6 +1,6 @@
-#include "framebuffer.h"
-#include "colour.h"
-#include "modelspace.h"
+#include "framebuffer/framebuffer.h"
+#include "render/raster.h"
+#include "model/modelspace.h"
 #include "logging.h"
 
 #include <stdlib.h>
@@ -50,9 +50,7 @@ void framebuffer_set_pixel(Framebuffer *fb, int x, int y, Colour colour) {
     LOG("Attempted to set invalid pixel %d, %d. Not colouring and returning.", x, y);
     return;
   }
-
-  LOG("Width, height, and channels are: %d, %d, %d", width, height, channels);
-  
+ 
   //((point.y * WIDTH) + point.x)*3
   const int pixelIdx = ((y * width) + x)*channels;
   assert(pixelIdx >= 0 && pixelIdx < width * height * channels);
@@ -63,15 +61,3 @@ void framebuffer_set_pixel(Framebuffer *fb, int x, int y, Colour colour) {
   fb->data[pixelIdx + 1] = colour.g;
   fb->data[pixelIdx + 2] = colour.b;
 }
-
-//TODO - Use this implementation to find where things live relative to a camera
-/*
-ScreenPos project(Vertex vertex) {
-  return (ScreenPos){vertex.x/y, }
-}
-*/
-
-ScreenPos project_to_framebuffer(Framebuffer *fb, Vertex *vertex) {
-  return (ScreenPos) {(vertex->x+1.0f) * (fb->width - 1)/2.0f, (vertex->y+1.0f) * (fb->height - 1)/2.0f};
-}
-

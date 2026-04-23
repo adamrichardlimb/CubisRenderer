@@ -1,4 +1,4 @@
-#include "colour.h"
+#include "core/colour.h"
 
 const Colour COLOUR_WHITE  = {255, 255, 255};
 const Colour COLOUR_RED    = {255, 0, 0};
