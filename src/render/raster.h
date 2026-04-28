@@ -8,4 +8,15 @@
 void draw_bresenham_line(Framebuffer *framebuffer, ScreenPos starting_point, ScreenPos ending_point, Colour colour);
 void draw_model(Framebuffer *framebuffer, Model *model);
 
+typedef struct {
+  float weight;
+  ScreenPos position;
+} BaryocentricTerm;
+
+typedef struct {
+  BaryocentricTerm a;
+  BaryocentricTerm b;
+  BaryocentricTerm c;
+} BaryocentricTriangle;
+
 #endif

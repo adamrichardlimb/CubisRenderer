@@ -17,6 +17,11 @@ typedef struct {
   int y;
 } ScreenPos;
 
+typedef struct {
+  ScreenPos pointA;
+  ScreenPos pointB;
+} BoundingBox;
+
 Framebuffer framebuffer_create(int width, int height, int channels);
 void framebuffer_destroy(Framebuffer *fb);
 void framebuffer_clear(Framebuffer *fb, Colour colour);
