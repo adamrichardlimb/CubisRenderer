@@ -71,29 +71,40 @@ BoundingBox find_triangle_bounding_box(ScreenPos a, ScreenPos b, ScreenPos c) {
   return (BoundingBox) {(ScreenPos) {minX, minY}, (ScreenPos) {maxX, maxY}};
 }
 
-double signed_triangle_area(ScreenPos a, ScreenPos b, ScreenPos c) {
-  return 0.5 * ((b.y-a.y)*(b.x+a.x) + (c.y-b.y)*(c.x+b.x) + (a.y-c.y)*(a.x+c.x));
+double signed_triangle_area(int ax, int ay, int bx, int by, int cx, int cy) {
+  return 0.5 * ((by-ay)*(bx+ax) + (cy-by)*(cx+bx) + (ay-cy)*(ax+cx));
 }
 
-void draw_filled_triangle(Framebuffer *framebuffer, ScreenPos a, ScreenPos b, ScreenPos c, Colour colour) {
+void draw_filled_triangle(Framebuffer *framebuffer, ScreenProjection a, ScreenProjection b, ScreenProjection c, Colour colour) {
   //Get bounding box
-  BoundingBox bbox = find_triangle_bounding_box(a, b, c);
+  BoundingBox bbox = find_triangle_bounding_box((ScreenPos) {a.x, a.y}, (ScreenPos) {b.x, b.y}, (ScreenPos) {c.x, c.y});
 
-  double total_area = signed_triangle_area(a, b, c);
+  double total_area = signed_triangle_area(a.x, a.y, b.x, b.y, c.x, c.y);
 
   //Go over every pixel - only colour if point in Baryocentric co-ordinates is within triangle
   //This is done by checking if each term Baryocentrically is positive
   #pragma omp parrallel for
   for (int x = bbox.pointA.x; x <= bbox.pointB.x; x++) {
     for (int y = bbox.pointA.y; y <= bbox.pointB.y; y++) {
-      ScreenPos current_pixel = (ScreenPos) {x, y};
-      double alpha = signed_triangle_area(current_pixel, b, c) / total_area;
-      double beta = signed_triangle_area(current_pixel, c, a) / total_area;
-      double gamma = signed_triangle_area(current_pixel, a, b) / total_area;
+      double alpha = signed_triangle_area(x, y, b.x, b.y, c.x, c.y) / total_area;
+      double beta = signed_triangle_area(x, y, c.x, c.y, a.x, a.y) / total_area;
+      double gamma = signed_triangle_area(x, y, a.x, a.y, b.x, b.y) / total_area;
 
       //If not in triangle - ignore
       if (alpha<0||beta<0||gamma<0) continue;
 
+      unsigned char z = (unsigned char) ((alpha * a.z) + (beta * b.z) + (gamma * c.z));
+
+      int z_buffer_idx = ((y * framebuffer->width) + x);
+      if (z <= framebuffer->z_buffer[z_buffer_idx]) continue;
+      
+        //Another test to draw an outline of some thickness
+        if (alpha > 0.1 && beta > 0.1 && gamma > 0.1) continue;
+      /*
+        //Quick test to see if I can colour based on Baryocentric values
+        colour = (Colour) {alpha*255, beta*255, gamma*255};
+      */
+      framebuffer_set_z_buffer(framebuffer, x, y, z);
       framebuffer_set_pixel(framebuffer, x, y, colour);
     }
   }
@@ -115,9 +126,9 @@ void draw_model(Framebuffer *framebuffer, Model *model) {
     Vertex vertex3 = model->vertices[face.vIndex3 - 1];
 
     //Scale to our image
-    ScreenPos point1 = project_to_screen(framebuffer, &vertex1);
-    ScreenPos point2 = project_to_screen(framebuffer, &vertex2);
-    ScreenPos point3 = project_to_screen(framebuffer, &vertex3);
+    ScreenProjection point1 = project_to_screen(framebuffer, &vertex1);
+    ScreenProjection point2 = project_to_screen(framebuffer, &vertex2);
+    ScreenProjection point3 = project_to_screen(framebuffer, &vertex3);
     srand(time(NULL));
     Colour test_colour = (Colour) {rand() % 255, rand() % 255, rand() % 255};
     draw_filled_triangle(framebuffer, point1, point2, point3, test_colour);

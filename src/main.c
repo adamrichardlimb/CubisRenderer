@@ -28,9 +28,19 @@ int main(void) {
     false
   };
 
+  tga_image zimage = (tga_image) {
+    WIDTH,
+    HEIGHT,
+    1,
+    framebuffer.z_buffer,
+    false,
+    false
+  };
+
   Model obj = parse_obj_file();
   draw_model(&framebuffer, &obj);
 
   save_tga("output.tga", &image, TGA_RGB);
+  save_tga("zoutput.tga", &zimage, TGA_BW8);
   return 0;
 }

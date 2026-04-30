@@ -10,11 +10,19 @@
 Framebuffer framebuffer_create(int width, int height, int channels) {
   unsigned char *data = malloc(width*height*channels);
   assert(data != NULL);
-  return (Framebuffer) {width, height, channels, data};
+  unsigned char *z_buffer = malloc(width*height);
+
+  //We have to remove garbage data from the z_buffer as we will be testing it
+  for (int fbIdx=0; fbIdx<width*height; fbIdx++) {
+    z_buffer[fbIdx] = 0;
+  }
+
+  return (Framebuffer) {width, height, channels, data, z_buffer};
 }
 
 void framebuffer_destroy(Framebuffer *fb) {
   free(fb->data);
+  free(fb->z_buffer);
   fb->data = NULL;
   fb->width = 0;
   fb->height = 0;
@@ -35,6 +43,33 @@ void framebuffer_clear(Framebuffer *fb, Colour colour) {
     fb->data[fbIdx + 1] = colour.g;
     fb->data[fbIdx + 2] = colour.b; 
   }
+
+  for (int fbIdx = 0; fbIdx < width*height; fbIdx++) {
+    fb->z_buffer[fbIdx] = 0;
+  }
+}
+
+int pixel_index(Framebuffer *fb, int x, int y) {
+  const int width = fb->width;
+  const int height = fb->height;
+
+  const int pixelIdx = ((y * width) + x);
+  assert(pixelIdx >= 0 && pixelIdx < width * height);
+  return pixelIdx;  
+}
+
+void framebuffer_set_z_buffer(Framebuffer *fb, int x, int y, char buffer_value) {
+  assert(fb);
+  assert(fb->z_buffer);
+
+  if (x < 0 || x >= fb->width || y < 0 || y >= fb->height) {
+    LOG("Attempted to set invalid z buffer pixel %d, %d. Not colouring and returning.", x, y);
+    return;
+  }
+
+  int pixelIdx = pixel_index(fb, x, y);
+
+  fb->z_buffer[pixelIdx] = buffer_value;
 }
 
 void framebuffer_set_pixel(Framebuffer *fb, int x, int y, Colour colour) {
@@ -42,19 +77,15 @@ void framebuffer_set_pixel(Framebuffer *fb, int x, int y, Colour colour) {
   assert(fb->data);
   assert(fb->channels==3);
 
-  const int width = fb->width;
-  const int height = fb->height;
-  const int channels = fb->channels;
+  int pixelIdx = pixel_index(fb, x, y);
 
-  if (x < 0 || x >= width || y < 0 || y >= height) {
+  if (x < 0 || x >= fb->width || y < 0 || y >= fb->height) {
     LOG("Attempted to set invalid pixel %d, %d. Not colouring and returning.", x, y);
     return;
   }
- 
-  //((point.y * WIDTH) + point.x)*3
-  const int pixelIdx = ((y * width) + x)*channels;
-  assert(pixelIdx >= 0 && pixelIdx < width * height * channels);
 
+  //Multiply by channels to get index in buffer
+  pixelIdx*=fb->channels;
   LOG("Colouring pixel at index %d", pixelIdx);
 
   fb->data[pixelIdx + 0] = colour.r;
